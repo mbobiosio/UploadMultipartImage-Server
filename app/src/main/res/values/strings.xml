@@ -1,10 +1,8 @@
 <resources>
     <string name="app_name">UploadMultipartImage-Server</string>
 
-    <string name="record">Take Video</string>
-    <string name="view">View</string>
+    <string name="record">Select</string>
+
     <string name="upload">Upload</string>
-    <string name="saved">Video saved!</string>
-    <string name="record_fail">Failed. Please take video again.</string>
-    <string name="camera_fail">Fail to use camera.</string>
+
 </resources>

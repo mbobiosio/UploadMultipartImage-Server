@@ -51,6 +51,9 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        mImageView = findViewById(R.id.imageView);
+        mSelectImage = findViewById(R.id.select);
+
         getPermission();
 
         mSelectImage.setOnClickListener(v -> selectImage());
