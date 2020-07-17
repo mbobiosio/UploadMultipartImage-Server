@@ -17,7 +17,7 @@ import androidx.annotation.RequiresApi;
  * https://twitter.com/cazewonder
  * Nigeria.
  */
-public class GetFilePathFromDevice {
+public class GetFilePath {
 
     /**
      * Get file path from URI
