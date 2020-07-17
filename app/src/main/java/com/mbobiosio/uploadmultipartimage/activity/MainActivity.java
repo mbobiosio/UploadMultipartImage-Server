@@ -1,39 +1,32 @@
 package com.mbobiosio.uploadmultipartimage.activity;
 
 import android.Manifest;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
+import android.database.Cursor;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
-import android.widget.VideoView;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
-import androidx.fragment.app.FragmentActivity;
+import androidx.core.content.ContextCompat;
 
 import com.mbobiosio.uploadmultipartimage.R;
 import com.mbobiosio.uploadmultipartimage.api.ApiClient;
+import com.mbobiosio.uploadmultipartimage.api.ApiInterface;
 import com.mbobiosio.uploadmultipartimage.model.ServerResponse;
-import com.mbobiosio.uploadmultipartimage.utils.FileUtils;
 
 import java.io.File;
-import java.io.IOException;
-import java.util.List;
-import java.util.Objects;
+import java.util.HashMap;
+import java.util.Map;
 
 import okhttp3.MediaType;
-import okhttp3.MultipartBody;
 import okhttp3.RequestBody;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -41,10 +34,10 @@ import retrofit2.Response;
 
 public class MainActivity extends AppCompatActivity {
 
-    private  static final int IMAGE = 100;
+    private static final int IMAGE = 1;
     ImageView mImageView;
     Button mSelectImage, mUploadImage;
-
+    String mediaPath, postPath;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,97 +46,127 @@ public class MainActivity extends AppCompatActivity {
 
         mImageView = findViewById(R.id.imageView);
         mSelectImage = findViewById(R.id.select);
+        mUploadImage = findViewById(R.id.upload);
 
-        getPermission();
+        checkPermission();
 
         mSelectImage.setOnClickListener(v -> selectImage());
+        mUploadImage.setOnClickListener(v -> uploadImage());
+    }
+
+    public void checkPermission() {
+        // Here, thisActivity is the current activity
+        if (ContextCompat.checkSelfPermission(getApplicationContext(),
+                Manifest.permission.READ_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            // Permission is not granted
+            // Should we show an explanation?
+            if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this,
+                    Manifest.permission.READ_EXTERNAL_STORAGE)) {
+                // Show an explanation to the user *asynchronously* -- don't block
+                // this thread waiting for the user's response! After the user
+                // sees the explanation, try again to request the permission.
+            } else {
+                // No explanation needed; request the permission
+                ActivityCompat.requestPermissions(MainActivity.this,
+                        new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
+                        2);
+
+                // app-defined int constant. The callback method gets the
+                // result of the request.
+            }
+        } else {
+            // Permission has already been granted
+        }
+
     }
 
     @Override
     protected void onResume() {
         super.onResume();
 
-
     }
 
     private void selectImage() {
         Intent intent = new Intent();
+        intent.setAction(Intent.ACTION_PICK);
         intent.setType("image/*");
-        intent.setAction(Intent.ACTION_GET_CONTENT);
         startActivityForResult(intent, IMAGE);
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode == RESULT_OK) {
+            if (requestCode == 1) {
+                if (data != null) {
+                    // Get the Image from data
+                    Uri selectedImage = data.getData();
+                    String[] filePathColumn = {MediaStore.Images.Media.DATA};
 
-        if (requestCode == IMAGE && resultCode == RESULT_OK && data != null) {
+                    Cursor cursor = getContentResolver().query(selectedImage, filePathColumn, null, null, null);
+                    assert cursor != null;
+                    cursor.moveToFirst();
 
-            Uri resultUri = data.getData();
+                    int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
+                    mediaPath = cursor.getString(columnIndex);
+                    // Set the Image in ImageView for Previewing the Media
+//                    imageView.setImageBitmap(BitmapFactory.decodeFile(mediaPath));
+                    cursor.close();
+                    mImageView.setImageURI(selectedImage);
 
-            mImageView.setImageURI(resultUri);
 
-            uploadImage(resultUri);
-
+                    postPath = mediaPath;
+                    mUploadImage.setVisibility(View.VISIBLE);
+                }
+            }
         }
     }
 
-    public void getPermission() {
-
-        ActivityCompat.requestPermissions(this,
-                new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                        Manifest.permission.READ_EXTERNAL_STORAGE
-                },
-                1000);
-    }
-
-    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
-    public static MultipartBody.Part prepareFilePart(Context context, String partName, Uri fileUri) {
-        File file = FileUtils.getFile(context, fileUri);
-
-        RequestBody requestFile =
-                RequestBody.create(
-                        MediaType.parse(Objects
-                                .requireNonNull(context.getContentResolver().getType(fileUri))),
-                        file
-                );
-        return MultipartBody.Part.createFormData(partName, file.getName(), requestFile);
-    }
-
-    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
-    private void uploadImage(Uri fileUri) {
-
-        String title = "avatar";
-
-        MultipartBody.Part fileToSend = prepareFilePart(getApplicationContext(), "image_path", fileUri);
+    private void uploadImage() {
+        if (postPath == null || postPath.equals("")) {
+            Toast.makeText(this, "please select an image ", Toast.LENGTH_LONG).show();
+            return;
+        } else {
 
 
-        ApiClient.getINSTANCE().upload(title,fileToSend).enqueue(new Callback<List<ServerResponse>>() {
-            @Override
-            public void onResponse(@NonNull Call<List<ServerResponse>> call, @NonNull Response<List<ServerResponse>> response) {
+            // Map is used to multipart the file using okhttp3.RequestBody
+            Map<String, RequestBody> map = new HashMap<>();
+            File file = new File(postPath);
 
-                List<ServerResponse> serverResponses = response.body();
+            // Parsing any Media type file
+            RequestBody requestBody = RequestBody.create(MediaType.parse("*/*"), file);
+            map.put("file\"; filename=\"" + file.getName() + "\"", requestBody);
+            ApiInterface api = ApiClient.getClient().create(ApiInterface.class);
+            Call<ServerResponse> call = api.upload("token", map);
+            call.enqueue(new Callback<ServerResponse>() {
+                @Override
+                public void onResponse(Call<ServerResponse> call, Response<ServerResponse> response) {
+                    if (response.isSuccessful()) {
+                        if (response.body() != null) {
 
-                for (int i = 0; i < serverResponses.size(); i++) {
-                    Toast.makeText(
-                            getApplicationContext(), serverResponses.get(i).getMessage()
-                                    +
-                                    "\n\n"
-                                    + serverResponses.get(i).getSuccess(), Toast.LENGTH_SHORT).show();
+                            ServerResponse serverResponse = response.body();
+                            Toast.makeText(getApplicationContext(), serverResponse.getMessage(), Toast.LENGTH_SHORT).show();
+
+                        }
+                    } else {
+
+                        Toast.makeText(getApplicationContext(), "problem uploading image", Toast.LENGTH_SHORT).show();
+                    }
+
                 }
-            }
 
-            @Override
-            public void onFailure(@NonNull Call<List<ServerResponse>> call, @NonNull Throwable t) {
+                @Override
+                public void onFailure(Call<ServerResponse> call, Throwable t) {
 
-                Log.d("bigo error  :  ",  t.getMessage());
-                Toast.makeText(getApplicationContext(), t.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-        });
+                    Toast.makeText(MainActivity.this, "" + t.getMessage(), Toast.LENGTH_SHORT).show();
+
+                }
+            });
+        }
 
 
     }
-
 
 }

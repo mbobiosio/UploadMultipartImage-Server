@@ -1,6 +1,5 @@
 package com.mbobiosio.uploadmultipartimage.model;
 
-import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 
 /**
@@ -12,26 +11,16 @@ import com.google.gson.annotations.SerializedName;
 public class ServerResponse {
 
     @SerializedName("success")
-    @Expose
-    private Boolean success;
+    boolean success;
     @SerializedName("message")
-    @Expose
-    private String message;
-
-    public Boolean getSuccess() {
-        return success;
-    }
-
-    public void setSuccess(Boolean success) {
-        this.success = success;
-    }
+    String message;
 
     public String getMessage() {
         return message;
     }
 
-    public void setMessage(String message) {
-        this.message = message;
+    public boolean getSuccess() {
+        return success;
     }
 
 }
